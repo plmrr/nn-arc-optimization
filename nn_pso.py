@@ -4,8 +4,7 @@ from keras.layers import Dense # type: ignore
 from keras.losses import BinaryCrossentropy # type: ignore
 from tensorflow.keras.callbacks import EarlyStopping # type: ignore
 import matplotlib.pyplot as plt
-# from tools import WeightsHistory
-# from tools import ClassificationErrorHistory
+from tools import MetricsHistory
 
 NEURONS_RANGE = (5, 100)
 
@@ -60,7 +59,6 @@ def update_position(particle):
     particle.position = new_position
 
 
-
 class Particle:
     def __init__(self, n_layers):
         self.position = random_hyperparameters(n_layers)
@@ -68,38 +66,23 @@ class Particle:
         self.best_position = self.position
         self.best_error = float('inf')
 
-# TODO
-"""
-def update_velocity(particle, global_best_position, iteration, max_iterations, w_start=0.9, w_end=0.4, c1_start=2.0, c1_end=0.5, c2_start=0.5, c2_end=2.0):
-    w = w_start - ((w_start - w_end) * (iteration / max_iterations))
-    c1 = c1_start - ((c1_start - c1_end) * (iteration / max_iterations))
-    c2 = c2_start + ((c2_end - c2_start) * (iteration / max_iterations))
-
-    new_velocity = []
-    for i, v_neurons in enumerate(particle.velocity):
-        r1 = random.random()
-        r2 = random.random()
-        best_neurons = particle.best_position[i]
-        current_neurons = particle.position[i]
-        global_best_neurons = global_best_position[i]
-        cognitive_velocity_neurons = c1 * r1 * (best_neurons - current_neurons)
-        social_velocity_neurons = c2 * r2 * (global_best_neurons - current_neurons)
-        v_neurons_updated = w * v_neurons + cognitive_velocity_neurons + social_velocity_neurons
-        new_velocity.append(v_neurons_updated)
-    particle.velocity = new_velocity
-"""
 
 def pso(n_particles, n_iterations, X_train, y_train, X_val, y_val, X_test, y_test):
     global_best_position = None
     global_best_error = float('inf')
     no_improve_count = 0
     particles = [Particle(random.randint(2, 5)) for _ in range(n_particles)]
+    best_metrics_history = None
+    all_accuracies = []
+    all_val_losses = []
+    
     for iteration in range(n_iterations):
         improved = False
         for particle in particles:
             model = create_model(particle.position)
             es = EarlyStopping(monitor='val_loss', mode='min', verbose=1, patience=10, restore_best_weights=True)
-            history_best = model.fit(X_train, y_train, epochs=50, batch_size=1, validation_data=(X_val, y_val), callbacks=[es], shuffle=True)
+            metrics_history = MetricsHistory()
+            history_best = model.fit(X_train, y_train, epochs=50, batch_size=1, validation_data=(X_val, y_val), callbacks=[es, metrics_history], shuffle=True)
             predictions = model.predict(X_test)
             bce = BinaryCrossentropy(from_logits=False)
             error = bce(y_test, predictions).numpy()
@@ -109,30 +92,34 @@ def pso(n_particles, n_iterations, X_train, y_train, X_val, y_val, X_test, y_tes
             if error < global_best_error:
                 global_best_error = error
                 global_best_position = particle.best_position.copy()
+                best_metrics_history = metrics_history
                 model.save('output_files/pso_model.h5')
                 plt.figure(figsize=(12, 6))
                 plt.plot(history_best.history['loss'])
                 plt.plot(history_best.history['val_loss'])
                 plt.ylabel('Strata')
                 plt.xlabel('Epoka')
-                plt.legend(['Zestaw treningowy', 'Zestaw walidacyjny'], loc='upper right')
+                plt.legend(['Training set', 'Validation set'], loc='upper right')
                 plt.savefig('output_files/pso_best_model_history.png')
                 plt.close()
                 improved = True
                 no_improve_count = 0
+            
+            all_accuracies.append(metrics_history.accuracy)
+            all_val_losses.append(metrics_history.val_loss)
 
         if not improved:
             no_improve_count += 1
 
         if no_improve_count >= 5:
             print(f"Brak poprawy globalnej straty przez {iteration+1}. Zatrzymywanie działania algorytmu PSO...")
-            return global_best_position
+            return global_best_position, best_metrics_history, all_accuracies, all_val_losses
 
         for particle in particles:
             update_velocity(particle, global_best_position)
             update_position(particle)
         print(f"Iteration {iteration+1}, Best Error: {global_best_error}")
-    return global_best_position
+    return global_best_position, best_metrics_history, all_accuracies, all_val_losses
 
 
 

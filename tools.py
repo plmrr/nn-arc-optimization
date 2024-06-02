@@ -7,37 +7,19 @@ from keras.models import Sequential # type: ignore
 from keras.layers import Dense # type: ignore
 from tensorflow.keras.optimizers import Adam # type: ignore
 from tensorflow.keras import Input # type: ignore
-from tensorflow.keras.callbacks import EarlyStopping # type: ignore
+from keras.callbacks import Callback # type: ignore
 
 # pd.options.display.max_columns = None
 
-# TODO
-"""
-class WeightsHistory(tf.keras.callbacks.Callback):
-    def on_train_begin(self, logs=None):
-        self.weights_ih = []
-        self.weights_ho = []
+class MetricsHistory(Callback):
+    def on_train_begin(self, logs={}):
+        self.accuracy = []
+        self.val_loss = []
 
-    def on_epoch_end(self, epoch, logs=None):
-        weights_ih, _ = self.model.layers[0].get_weights()
-        weights_ho, _ = self.model.layers[1].get_weights()
-        self.weights_ih.append(weights_ih.flatten())
-        self.weights_ho.append(weights_ho.flatten())
+    def on_epoch_end(self, epoch, logs={}):
+        self.accuracy.append(logs.get('accuracy'))
+        self.val_loss.append(logs.get('val_loss'))
 
-class ClassificationErrorHistory(tf.keras.callbacks.Callback):
-    def __init__(self):
-        super().__init__()
-        self.classification_errors = []
-
-    def on_train_begin(self, logs=None):
-        self.classification_errors = []
-
-    def on_epoch_end(self, epoch, logs=None):
-        predictions = self.model.predict(X) > 0.5
-        incorrect_predictions = np.sum(predictions.flatten() != y.flatten())
-        error_rate = incorrect_predictions / len(y)
-        self.classification_errors.append(error_rate)
-"""
 
 def preprocess_data(f_path):
     df = pd.read_csv(f_path)
